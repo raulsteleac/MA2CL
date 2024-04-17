@@ -1,7 +1,7 @@
 import torch
 
-from algorithms.actor_critic import Actor, Critic
-from utils.util import update_linear_schedule
+from MA2CL.algorithms.actor_critic import Actor, Critic
+from MA2CL.utils.util import update_linear_schedule
 
 
 class HATRPO_Policy:

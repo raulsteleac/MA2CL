@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from utils.util import get_shape_from_act_space, get_shape_from_obs_space, random_crop
+from MA2CL.utils.util import get_shape_from_act_space, get_shape_from_obs_space, random_crop
 
 def _flatten(T, N, x):
     return x.reshape(T * N, *x.shape[2:])

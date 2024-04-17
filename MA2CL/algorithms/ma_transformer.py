@@ -5,14 +5,14 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
-from algorithms.utils.cnn import CNNLayer, ImpalaCNN
-from algorithms.utils.transformer_act import (
+from MA2CL.algorithms.utils.cnn import CNNLayer, ImpalaCNN
+from MA2CL.algorithms.utils.transformer_act import (
     continuous_autoregreesive_act,
     continuous_parallel_act,
     discrete_autoregreesive_act,
     discrete_parallel_act,
 )
-from algorithms.utils.util import check, init
+from MA2CL.algorithms.utils.util import check, init
 
 
 def init_(m, gain=0.01, activate=False):

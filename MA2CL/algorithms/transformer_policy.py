@@ -3,8 +3,8 @@ from email import utils
 import numpy as np
 import torch
 
-from algorithms.ma_transformer import MultiAgentTransformer
-from algorithms.utils.util import check
+from MA2CL.algorithms.ma_transformer import MultiAgentTransformer
+from MA2CL.algorithms.utils.util import check
 from utils.util import (
     center_crop_image,
     get_model_params_volume,

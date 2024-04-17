@@ -77,6 +77,7 @@ def make_env(all_args: DictConfig, eval=False):
                     "observation_type": all_args.observation_type,
                     "use_camera_state": all_args.use_camera_state,
                 }
+                print("DRONE")
                 from envs.gym_pybullet_drones.drone_env import DroneEnv
                 env = DroneEnv(env_args)
             else:

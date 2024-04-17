@@ -2,10 +2,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from algorithms.actor_critic import Actor
-from algorithms.utils.popart import PopArt
-from algorithms.utils.util import check
-from utils.util import get_gard_norm, huber_loss, mse_loss
+from MA2CL.algorithms.actor_critic import Actor
+from MA2CL.algorithms.utils.popart import PopArt
+from MA2CL.algorithms.utils.util import check
+from MA2CL.utils.util import get_gard_norm, huber_loss, mse_loss
 
 
 class HATRPO:

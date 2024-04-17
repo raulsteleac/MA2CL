@@ -1,12 +1,12 @@
 import torch
 import torch.nn as nn
 
-from algorithms.utils.act import ACTLayer
-from algorithms.utils.cnn import CNNBase
-from algorithms.utils.mlp import MLPBase
-from algorithms.utils.rnn import RNNLayer
-from algorithms.utils.util import check, init
-from utils.util import get_shape_from_obs_space
+from MA2CL.algorithms.utils.act import ACTLayer
+from MA2CL.algorithms.utils.cnn import CNNBase
+from MA2CL.algorithms.utils.mlp import MLPBase
+from MA2CL.algorithms.utils.rnn import RNNLayer
+from MA2CL.algorithms.utils.util import check, init
+from MA2CL.utils.util import get_shape_from_obs_space
 
 
 class Actor(nn.Module):

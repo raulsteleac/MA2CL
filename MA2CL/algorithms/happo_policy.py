@@ -1,43 +1,44 @@
 import torch
 
-from algorithms.actor_critic import Actor, Critic
-from utils.util import center_crop_image, update_linear_schedule
+from MA2CL.algorithms.actor_critic import Actor, Critic
+from MA2CL.utils.util import center_crop_image, update_linear_schedule
 from gym.spaces import Box
 
-class MAPPO_Policy:
+
+class HAPPO_Policy:
     """
-    MAPPO Policy  class. Wraps actor and critic networks to compute actions and value function predictions.
+    HAPPO Policy  class. Wraps actor and critic networks to compute actions and value function predictions.
 
     :param args: (argparse.Namespace) arguments containing relevant model and policy information.
     :param obs_space: (gym.Space) observation space.
-    :param cent_obs_space: (gym.Space) value function input space (centralized input for MAPPO, decentralized for IPPO).
+    :param cent_obs_space: (gym.Space) value function input space (centralized input for HAPPO, decentralized for IPPO).
     :param action_space: (gym.Space) action space.
     :param device: (torch.device) specifies the device to run on (cpu/gpu).
     """
 
     def __init__(
-        self,
-        all_args,
-        obs_space,
-        cent_obs_space,
-        act_space,
-        num_agents,
-        device=torch.device("cpu"),
+        self, args, obs_space, cent_obs_space, act_space, device=torch.device("cpu")
     ):
+        self.args = args
         self.device = device
-        self.lr = all_args["lr"]
-        self.critic_lr = all_args["critic_lr"]
-        self.opti_eps = all_args["opti_eps"]
-        self.weight_decay = all_args["weight_decay"]
+        self.lr = args.lr
+        self.critic_lr = args.critic_lr
+        self.opti_eps = args.opti_eps
+        self.weight_decay = args.weight_decay
 
         self.obs_space = obs_space
         self.share_obs_space = cent_obs_space
         self.act_space = act_space
 
-        self.actor = Actor(all_args, self.obs_space, self.act_space, self.device)
-        self.critic = Critic(all_args, self.share_obs_space, self.device)
-        print(self.actor)
-        print(self.critic)
+        self.actor = Actor(args, self.obs_space, self.act_space, self.device)
+
+        ######################################Please Note#########################################
+        #####   We create one critic for each agent, but they are trained with same data     #####
+        #####   and using same update setting. Therefore they have the same parameter,       #####
+        #####   you can regard them as the same critic.                                      #####
+        ##########################################################################################
+        self.critic = Critic(args, self.share_obs_space, self.device)
+
         self.actor_optimizer = torch.optim.Adam(
             self.actor.parameters(),
             lr=self.lr,
@@ -50,11 +51,10 @@ class MAPPO_Policy:
             eps=self.opti_eps,
             weight_decay=self.weight_decay,
         )
-        self.num_agents = num_agents
-        self.tpdv = dict(dtype=torch.float32, device=device)
+
         # if isinstance(obs_space, Box) and len(obs_space.shape) == 3:
-        self.pre_transform_image_size = all_args["pre_transform_image_size"]
-        self.image_size = all_args["image_size"]
+        self.pre_transform_image_size = args["pre_transform_image_size"]
+        self.image_size = args["image_size"]
 
     def lr_decay(self, episode, episodes):
         """
@@ -99,10 +99,11 @@ class MAPPO_Policy:
         actions, action_log_probs, rnn_states_actor = self.actor(
             obs, rnn_states_actor, masks, available_actions, deterministic
         )
+
         values, rnn_states_critic = self.critic(cent_obs, rnn_states_critic, masks)
         return values, actions, action_log_probs, rnn_states_actor, rnn_states_critic
 
-    def get_values(self, cent_obs, obs, rnn_states_critic, masks):
+    def get_values(self, cent_obs, rnn_states_critic, masks):
         """
         Get value function predictions.
         :param cent_obs (np.ndarray): centralized input to the critic.
@@ -143,6 +144,7 @@ class MAPPO_Policy:
         :return action_log_probs: (torch.Tensor) log probabilities of the input actions.
         :return dist_entropy: (torch.Tensor) action distribution entropy for the given inputs.
         """
+
         action_log_probs, dist_entropy = self.actor.evaluate_actions(
             obs, rnn_states_actor, action, masks, available_actions, active_masks
         )
@@ -151,13 +153,7 @@ class MAPPO_Policy:
         return values, action_log_probs, dist_entropy
 
     def act(
-        self,
-        cent_obs,
-        obs,
-        rnn_states_actor,
-        masks,
-        available_actions=None,
-        deterministic=False,
+        self, obs, rnn_states_actor, masks, available_actions=None, deterministic=False
     ):
         """
         Compute actions using the given inputs.

@@ -2,10 +2,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from algorithms.utils.popart import PopArt
-from algorithms.utils.util import check
-from algorithms.utils.valuenorm import ValueNorm
-from utils.util import get_gard_norm, huber_loss, mse_loss
+from MA2CL.algorithms.utils.popart import PopArt
+from MA2CL.algorithms.utils.util import check
+from MA2CL.algorithms.utils.valuenorm import ValueNorm
+from MA2CL.utils.util import get_gard_norm, huber_loss, mse_loss
 
 
 class HAPPO:

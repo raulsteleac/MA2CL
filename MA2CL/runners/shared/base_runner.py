@@ -6,7 +6,7 @@ import torch
 import wandb
 from gym.spaces import Box
 from tensorboardX import SummaryWriter
-from utils.shared_buffer import SharedReplayBuffer
+from MA2CL.utils.shared_buffer import SharedReplayBuffer
 
 
 def _t2n(x):
@@ -70,11 +70,11 @@ class Runner(object):
                 os.makedirs(self.save_dir)
 
         if 'ppo' in self.algorithm_name:
-            from algorithms.mappo_policy import MAPPO_Policy as Policy
-            from algorithms.mappo_trainer import MAPPO as TrainAlgo
+            from MA2CL.algorithms.mappo_policy import MAPPO_Policy as Policy
+            from MA2CL.algorithms.mappo_trainer import MAPPO as TrainAlgo
         elif "mat" in self.algorithm_name or "major" == self.algorithm_name:
-            from algorithms.mat_trainer import MATTrainer as TrainAlgo
-            from algorithms.transformer_policy import TransformerPolicy as Policy
+            from MA2CL.algorithms.mat_trainer import MATTrainer as TrainAlgo
+            from MA2CL.algorithms.transformer_policy import TransformerPolicy as Policy
 
         print("obs_space: ", self.envs.observation_space[0])
         print("share_obs_space: ", self.envs.share_observation_space[0])

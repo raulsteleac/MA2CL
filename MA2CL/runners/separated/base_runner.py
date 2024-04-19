@@ -5,11 +5,11 @@ import torch
 import wandb
 from gym.spaces import Box
 from tensorboardX import SummaryWriter
-from utils.separated_buffer import SeparatedReplayBuffer
-from utils.util import random_crop, update_linear_schedule
-from algorithms.utils.maskagent import MaskAgent
-from algorithms.utils.util import check
-from utils.util import (
+from MA2CL.utils.separated_buffer import SeparatedReplayBuffer
+from MA2CL.utils.util import random_crop, update_linear_schedule
+from MA2CL.algorithms.utils.maskagent import MaskAgent
+from MA2CL.algorithms.utils.util import check
+from MA2CL.utils.util import (
     get_gard_norm,
     huber_loss,
     mse_loss,
@@ -77,11 +77,11 @@ class Runner(object):
                 os.makedirs(self.save_dir)
 
         if "happo" in self.all_args.algorithm_name:
-            from algorithms.happo_policy import HAPPO_Policy as Policy
-            from algorithms.happo_trainer import HAPPO as TrainAlgo
+            from MA2CL.algorithms.happo_policy import HAPPO_Policy as Policy
+            from MA2CL.algorithms.happo_trainer import HAPPO as TrainAlgo
         elif "hatrpo" in self.all_args.algorithm_name:
-            from algorithms.hatrpo_policy import HATRPO_Policy as Policy
-            from algorithms.hatrpo_trainer import HATRPO as TrainAlgo
+            from MA2CL.algorithms.hatrpo_policy import HATRPO_Policy as Policy
+            from MA2CL.algorithms.hatrpo_trainer import HATRPO as TrainAlgo
         else:
             raise NotImplementedError
 
@@ -253,7 +253,7 @@ class Runner(object):
             )
 
     def train(self):
-        train_infos = []
+        train_infos = [{} for _ in range(self.num_agents)]
         # random update order
 
         action_dim = self.buffer[0].actions.shape[-1]
@@ -384,7 +384,7 @@ class Runner(object):
                     torch.exp(new_actions_logprob - old_actions_logprob), dim=-1
                 ).reshape(self.episode_length, self.n_rollout_threads, 1)
             )
-            train_infos.append(train_info)
+            train_infos[agent_id] = train_info
             
         if self._mask_agent:
             train_info = {}

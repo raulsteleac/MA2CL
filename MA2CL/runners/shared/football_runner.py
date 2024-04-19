@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import wandb
 
-from runners.shared.base_runner import Runner
+from MA2CL.runners.shared.base_runner import Runner
 
 
 def _t2n(x):

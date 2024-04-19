@@ -9,9 +9,9 @@ import torch.nn.functional as F
 from kornia.augmentation import CenterCrop, RandomAffine, RandomCrop, RandomResizedCrop
 from kornia.filters import GaussianBlur2d
 
-from algorithms.ma_transformer import EncodeBlock, init_
-from utils.util import get_model_params_volume, maybe_transform
-from algorithms.utils.transformer_act import (
+from MA2CL.algorithms.ma_transformer import EncodeBlock, init_
+from MA2CL.utils.util import get_model_params_volume, maybe_transform
+from MA2CL.algorithms.utils.transformer_act import (
     discrete_parallel_act_logits,
     continuous_parallel_act_logits,
 )

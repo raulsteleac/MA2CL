@@ -1,4 +1,4 @@
-from runners.separated import (
+from MA2CL.runners.separated import (
     base_runner,
     football_runner,
     mujoco_runner,

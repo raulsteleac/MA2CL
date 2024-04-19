@@ -47,11 +47,22 @@ class Runner(object):
         self.use_render = self.all_args.use_render
         self.recurrent_N = self.all_args.recurrent_N
         self.use_single_network = self.all_args.use_single_network
+
         # interval
         self.save_interval = self.all_args.save_interval
         self.use_eval = self.all_args.use_eval
         self.eval_interval = self.all_args.eval_interval
         self.log_interval = self.all_args.log_interval
+
+        # agent groups
+        if self.all_args.use_agent_groups:
+            self.agent_groups = self.envs.unwrapped.agent_groups
+            print("Using agent groups: ", self.agent_groups)
+        else:
+            # if env doesn't support agent groups there is one group with all agents
+            self.agent_groups = [list(np.arange(self.num_agents))]
+
+        self.num_agent_groups = len(self.agent_groups)
 
         # dir
         self.model_dir = self.all_args.model_dir
@@ -85,9 +96,9 @@ class Runner(object):
         else:
             raise NotImplementedError
 
-        print("share_observation_space: ", self.envs.share_observation_space)
-        print("observation_space: ", self.envs.observation_space)
-        print("action_space: ", self.envs.action_space)
+        # print("share_observation_space: ", self.envs.share_observation_space)
+        # print("observation_space: ", self.envs.observation_space)
+        # print("action_space: ", self.envs.action_space)
 
         self.policy = []
         for agent_id in range(self.num_agents):
@@ -148,6 +159,7 @@ class Runner(object):
 
         self.trainer = []
         self.buffer = []
+        # no need to loop through groups here since agents are separate
         for agent_id in range(self.num_agents):
             # algorithm
             tr = TrainAlgo(self.all_args, self.policy[agent_id], device=self.device)
@@ -261,130 +273,133 @@ class Runner(object):
             (self.episode_length, self.n_rollout_threads, 1), dtype=np.float32
         )
 
-        for agent_id in torch.randperm(self.num_agents):
-            self.trainer[agent_id].prep_training()
-            self.buffer[agent_id].update_factor(factor)
-            available_actions = (
-                None
-                if self.buffer[agent_id].available_actions is None
-                else self.buffer[agent_id]
-                .available_actions[:-1]
-                .reshape(-1, *self.buffer[agent_id].available_actions.shape[2:])
-            )
-
-            if self.all_args.algorithm_name == "hatrpo":
-                obs = (
-                    self.buffer[agent_id]
-                    .obs[:-1]
-                    .reshape(-1, *self.buffer[agent_id].obs.shape[2:])
-                )
-                if len(obs.shape) > 2 and obs.shape[-1] > self.all_args["image_size"]:
-                    obs = random_crop(obs, self.all_args["image_size"])
-                old_actions_logprob, _, _, _, _ = self.trainer[
-                    agent_id
-                ].policy.actor.evaluate_actions(
-                    obs,
-                    self.buffer[agent_id]
-                    .rnn_states[0:1]
-                    .reshape(-1, *self.buffer[agent_id].rnn_states.shape[2:]),
-                    self.buffer[agent_id].actions.reshape(
-                        -1, *self.buffer[agent_id].actions.shape[2:]
-                    ),
-                    self.buffer[agent_id]
-                    .masks[:-1]
-                    .reshape(-1, *self.buffer[agent_id].masks.shape[2:]),
-                    available_actions,
-                    self.buffer[agent_id]
-                    .active_masks[:-1]
-                    .reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]),
-                )
-            else:
-                obs = (
-                    self.buffer[agent_id]
-                    .obs[:-1]
-                    .reshape(-1, *self.buffer[agent_id].obs.shape[2:])
-                )
-                if len(obs.shape) > 2 and obs.shape[-1] > self.all_args["image_size"]:
-                    obs = random_crop(obs, self.all_args["image_size"])
-                old_actions_logprob, _ = self.trainer[
-                    agent_id
-                ].policy.actor.evaluate_actions(
-                    obs,
-                    self.buffer[agent_id]
-                    .rnn_states[0:1]
-                    .reshape(-1, *self.buffer[agent_id].rnn_states.shape[2:]),
-                    self.buffer[agent_id].actions.reshape(
-                        -1, *self.buffer[agent_id].actions.shape[2:]
-                    ),
-                    self.buffer[agent_id]
-                    .masks[:-1]
-                    .reshape(-1, *self.buffer[agent_id].masks.shape[2:]),
-                    available_actions,
-                    self.buffer[agent_id]
-                    .active_masks[:-1]
-                    .reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]),
-                )
-            train_info = self.trainer[agent_id].train(self.buffer[agent_id])
-
-            if self.all_args.algorithm_name == "hatrpo":
-                obs = (
-                    self.buffer[agent_id]
-                    .obs[:-1]
-                    .reshape(-1, *self.buffer[agent_id].obs.shape[2:])
-                )
-                if len(obs.shape) > 2 and obs.shape[-1] > self.all_args["image_size"]:
-                    obs = random_crop(obs, self.all_args["image_size"])
-                new_actions_logprob, _, _, _, _ = self.trainer[
-                    agent_id
-                ].policy.actor.evaluate_actions(
-                    obs,
-                    self.buffer[agent_id]
-                    .rnn_states[0:1]
-                    .reshape(-1, *self.buffer[agent_id].rnn_states.shape[2:]),
-                    self.buffer[agent_id].actions.reshape(
-                        -1, *self.buffer[agent_id].actions.shape[2:]
-                    ),
-                    self.buffer[agent_id]
-                    .masks[:-1]
-                    .reshape(-1, *self.buffer[agent_id].masks.shape[2:]),
-                    available_actions,
-                    self.buffer[agent_id]
-                    .active_masks[:-1]
-                    .reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]),
-                )
-            else:
-                obs = (
-                    self.buffer[agent_id]
-                    .obs[:-1]
-                    .reshape(-1, *self.buffer[agent_id].obs.shape[2:])
-                )
-                if len(obs.shape) > 2 and obs.shape[-1] > self.all_args["image_size"]:
-                    obs = random_crop(obs, self.all_args["image_size"])
-                new_actions_logprob, _ = self.trainer[
-                    agent_id
-                ].policy.actor.evaluate_actions(
-                    obs,
-                    self.buffer[agent_id]
-                    .rnn_states[0:1]
-                    .reshape(-1, *self.buffer[agent_id].rnn_states.shape[2:]),
-                    self.buffer[agent_id].actions.reshape(
-                        -1, *self.buffer[agent_id].actions.shape[2:]
-                    ),
-                    self.buffer[agent_id]
-                    .masks[:-1]
-                    .reshape(-1, *self.buffer[agent_id].masks.shape[2:]),
-                    available_actions,
-                    self.buffer[agent_id]
-                    .active_masks[:-1]
-                    .reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]),
+        # groups have fixed order but agents are shuffled within the group
+        for agent_group in self.agent_groups:
+            shuffled_agents = np.random.choice(agent_group, len(agent_group), replace=False)
+            for agent_id in shuffled_agents:
+                self.trainer[agent_id].prep_training()
+                self.buffer[agent_id].update_factor(factor)
+                available_actions = (
+                    None
+                    if self.buffer[agent_id].available_actions is None
+                    else self.buffer[agent_id]
+                    .available_actions[:-1]
+                    .reshape(-1, *self.buffer[agent_id].available_actions.shape[2:])
                 )
 
-            factor = factor * _t2n(
-                torch.prod(
-                    torch.exp(new_actions_logprob - old_actions_logprob), dim=-1
-                ).reshape(self.episode_length, self.n_rollout_threads, 1)
-            )
-            train_infos[agent_id] = train_info
+                if self.all_args.algorithm_name == "hatrpo":
+                    obs = (
+                        self.buffer[agent_id]
+                        .obs[:-1]
+                        .reshape(-1, *self.buffer[agent_id].obs.shape[2:])
+                    )
+                    if len(obs.shape) > 2 and obs.shape[-1] > self.all_args["image_size"]:
+                        obs = random_crop(obs, self.all_args["image_size"])
+                    old_actions_logprob, _, _, _, _ = self.trainer[
+                        agent_id
+                    ].policy.actor.evaluate_actions(
+                        obs,
+                        self.buffer[agent_id]
+                        .rnn_states[0:1]
+                        .reshape(-1, *self.buffer[agent_id].rnn_states.shape[2:]),
+                        self.buffer[agent_id].actions.reshape(
+                            -1, *self.buffer[agent_id].actions.shape[2:]
+                        ),
+                        self.buffer[agent_id]
+                        .masks[:-1]
+                        .reshape(-1, *self.buffer[agent_id].masks.shape[2:]),
+                        available_actions,
+                        self.buffer[agent_id]
+                        .active_masks[:-1]
+                        .reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]),
+                    )
+                else:
+                    obs = (
+                        self.buffer[agent_id]
+                        .obs[:-1]
+                        .reshape(-1, *self.buffer[agent_id].obs.shape[2:])
+                    )
+                    if len(obs.shape) > 2 and obs.shape[-1] > self.all_args["image_size"]:
+                        obs = random_crop(obs, self.all_args["image_size"])
+                    old_actions_logprob, _ = self.trainer[
+                        agent_id
+                    ].policy.actor.evaluate_actions(
+                        obs,
+                        self.buffer[agent_id]
+                        .rnn_states[0:1]
+                        .reshape(-1, *self.buffer[agent_id].rnn_states.shape[2:]),
+                        self.buffer[agent_id].actions.reshape(
+                            -1, *self.buffer[agent_id].actions.shape[2:]
+                        ),
+                        self.buffer[agent_id]
+                        .masks[:-1]
+                        .reshape(-1, *self.buffer[agent_id].masks.shape[2:]),
+                        available_actions,
+                        self.buffer[agent_id]
+                        .active_masks[:-1]
+                        .reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]),
+                    )
+                train_info = self.trainer[agent_id].train(self.buffer[agent_id])
+
+                if self.all_args.algorithm_name == "hatrpo":
+                    obs = (
+                        self.buffer[agent_id]
+                        .obs[:-1]
+                        .reshape(-1, *self.buffer[agent_id].obs.shape[2:])
+                    )
+                    if len(obs.shape) > 2 and obs.shape[-1] > self.all_args["image_size"]:
+                        obs = random_crop(obs, self.all_args["image_size"])
+                    new_actions_logprob, _, _, _, _ = self.trainer[
+                        agent_id
+                    ].policy.actor.evaluate_actions(
+                        obs,
+                        self.buffer[agent_id]
+                        .rnn_states[0:1]
+                        .reshape(-1, *self.buffer[agent_id].rnn_states.shape[2:]),
+                        self.buffer[agent_id].actions.reshape(
+                            -1, *self.buffer[agent_id].actions.shape[2:]
+                        ),
+                        self.buffer[agent_id]
+                        .masks[:-1]
+                        .reshape(-1, *self.buffer[agent_id].masks.shape[2:]),
+                        available_actions,
+                        self.buffer[agent_id]
+                        .active_masks[:-1]
+                        .reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]),
+                    )
+                else:
+                    obs = (
+                        self.buffer[agent_id]
+                        .obs[:-1]
+                        .reshape(-1, *self.buffer[agent_id].obs.shape[2:])
+                    )
+                    if len(obs.shape) > 2 and obs.shape[-1] > self.all_args["image_size"]:
+                        obs = random_crop(obs, self.all_args["image_size"])
+                    new_actions_logprob, _ = self.trainer[
+                        agent_id
+                    ].policy.actor.evaluate_actions(
+                        obs,
+                        self.buffer[agent_id]
+                        .rnn_states[0:1]
+                        .reshape(-1, *self.buffer[agent_id].rnn_states.shape[2:]),
+                        self.buffer[agent_id].actions.reshape(
+                            -1, *self.buffer[agent_id].actions.shape[2:]
+                        ),
+                        self.buffer[agent_id]
+                        .masks[:-1]
+                        .reshape(-1, *self.buffer[agent_id].masks.shape[2:]),
+                        available_actions,
+                        self.buffer[agent_id]
+                        .active_masks[:-1]
+                        .reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]),
+                    )
+
+                factor = factor * _t2n(
+                    torch.prod(
+                        torch.exp(new_actions_logprob - old_actions_logprob), dim=-1
+                    ).reshape(self.episode_length, self.n_rollout_threads, 1)
+                )
+                train_infos[agent_id] = train_info
             
         if self._mask_agent:
             train_info = {}

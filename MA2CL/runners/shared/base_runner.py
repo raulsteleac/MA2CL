@@ -53,6 +53,15 @@ class Runner(object):
         self.eval_interval = self.all_args.eval_interval
         self.log_interval = self.all_args.log_interval
 
+        # agent groups
+        if self.all_args.use_agent_groups:
+            self.agent_groups = self.envs.unwrapped.agent_groups
+            print("Using agent groups: ", self.agent_groups)
+        else:
+            # if env doesn't support agent groups there is one group with all agents
+            self.agent_groups = [list(np.arange(self.num_agents))]
+        self.num_agent_groups = len(self.agent_groups)
+
         # dir
         self.model_dir = self.all_args.model_dir
 
@@ -76,79 +85,95 @@ class Runner(object):
             from MA2CL.algorithms.mat_trainer import MATTrainer as TrainAlgo
             from MA2CL.algorithms.transformer_policy import TransformerPolicy as Policy
 
-        print("obs_space: ", self.envs.observation_space[0])
-        print("share_obs_space: ", self.envs.share_observation_space[0])
-        print("act_space: ", self.envs.action_space[0])
+        for idx, group in enumerate(self.agent_groups):
+            print(f"group {idx} obs_space: ", self.envs.observation_space[group[0]])
+            print(f"group {idx} share_obs_space: ", self.envs.share_observation_space[group[0]])
+            print(f"group {idx} act_space: ", self.envs.action_space[group[0]])
 
-        pre_share_observation_space = (
-            self.envs.share_observation_space[0]
-            if self.use_centralized_V
-            else self.envs.observation_space[0]
-        )
-        pre_observation_space = self.envs.observation_space[0]
-        if (
-            isinstance(pre_share_observation_space, Box)
-            and len(pre_share_observation_space.shape) == 3
-            and self.all_args.pre_transform_image_size > self.all_args.image_size
-        ):
-            share_observation_space = Box(
-                0,
-                255,
-                (
-                    pre_share_observation_space.shape[-3],
-                    self.all_args.image_size,
-                    self.all_args.image_size,
-                ),
-                np.uint8,
+        self.policy = []
+        # each group has a different policy
+        for agent_group in self.agent_groups:
+            pre_share_observation_space = (
+                self.envs.share_observation_space[agent_group[0]]
+                if self.use_centralized_V
+                else self.envs.observation_space[agent_group[0]]
             )
-        else:
-            share_observation_space = pre_share_observation_space
+            pre_observation_space = self.envs.observation_space[agent_group[0]]
+            if (
+                isinstance(pre_share_observation_space, Box)
+                and len(pre_share_observation_space.shape) == 3
+                and self.all_args.pre_transform_image_size > self.all_args.image_size
+            ):
+                share_observation_space = Box(
+                    0,
+                    255,
+                    (
+                        pre_share_observation_space.shape[-3],
+                        self.all_args.image_size,
+                        self.all_args.image_size,
+                    ),
+                    np.uint8,
+                )
+            else:
+                share_observation_space = pre_share_observation_space
 
-        if (
-            isinstance(pre_observation_space, Box)
-            and len(pre_observation_space.shape) == 3
-            and self.all_args.pre_transform_image_size > self.all_args.image_size
-        ):
-            observation_space = Box(
-                0,
-                255,
-                (
-                    pre_observation_space.shape[-3],
-                    self.all_args.image_size,
-                    self.all_args.image_size,
-                ),
-                np.uint8,
+            if (
+                isinstance(pre_observation_space, Box)
+                and len(pre_observation_space.shape) == 3
+                and self.all_args.pre_transform_image_size > self.all_args.image_size
+            ):
+                observation_space = Box(
+                    0,
+                    255,
+                    (
+                        pre_observation_space.shape[-3],
+                        self.all_args.image_size,
+                        self.all_args.image_size,
+                    ),
+                    np.uint8,
+                )
+            else:
+                observation_space = pre_observation_space
+
+            # policy network
+            po = Policy(
+                self.all_args,
+                observation_space,
+                share_observation_space,
+                self.envs.action_space[agent_group[0]],
+                len(agent_group),
+                device=self.device,
             )
-        else:
-            observation_space = pre_observation_space
-
-        # policy network
-        self.policy = Policy(
-            self.all_args,
-            observation_space,
-            share_observation_space,
-            self.envs.action_space[0],
-            self.num_agents,
-            device=self.device,
-        )
+            self.policy.append(po)
 
         if self.model_dir is not None:
             self.restore(self.model_dir)
 
-        # algorithm
-        self.trainer = TrainAlgo(
-            self.all_args, self.policy, self.num_agents, device=self.device
-        )
-
-        # buffer
         self.use_share_obs = self.all_args.use_share_obs
-        self.buffer = SharedReplayBuffer(
-            self.all_args,
-            self.num_agents,
-            pre_observation_space,
-            pre_share_observation_space,
-            self.envs.action_space[0],
-        )
+        self.trainer = []
+        self.buffer = []
+        for group_id, agent_group in enumerate(self.agent_groups):
+            group_num_agents = len(agent_group)
+            # algorithm
+            tr = TrainAlgo(
+                self.all_args, self.policy[group_id], group_num_agents, device=self.device
+            )
+            # buffer
+            pre_share_observation_space = (
+                self.envs.share_observation_space[agent_group[0]]
+                if self.use_centralized_V
+                else self.envs.observation_space[agent_group[0]]
+            )
+            pre_observation_space = self.envs.observation_space[agent_group[0]]
+            bu = SharedReplayBuffer(
+                self.all_args,
+                group_num_agents,
+                pre_observation_space,
+                pre_share_observation_space,
+                self.envs.action_space[agent_group[0]],
+            )
+            self.buffer.append(bu)
+            self.trainer.append(tr)
 
     def run(self):
         """Collect training data, perform training updates, and evaluate policy."""
@@ -172,48 +197,54 @@ class Runner(object):
     @torch.no_grad()
     def compute(self):
         """Calculate returns for the collected data."""
-        self.trainer.prep_rollout()
-        obs_batch = np.concatenate(self.buffer.obs[-1])
-        if self.use_share_obs == False and self.all_args.env_name == "drone" and "ppo" in self.algorithm_name:
-            BxN, C, H, W = obs_batch.shape
-            N = self.num_agents
-            B = BxN // N
-            state_batch = obs_batch.reshape(B, N * C, H, W).repeat(N, 0)
-        else:
-            state_batch = np.concatenate(self.buffer.share_obs[-1]) if self.use_share_obs else None
-        next_values = self.trainer.policy.get_values(
-            state_batch,
-            obs_batch,
-            np.concatenate(self.buffer.rnn_states_critic[-1]),
-            np.concatenate(self.buffer.masks[-1]),
-        )
-        next_values = np.array(np.split(_t2n(next_values), self.n_rollout_threads))
-        self.buffer.compute_returns(next_values, self.trainer.value_normalizer)
+        for group_id in range(self.num_agent_groups):
+            self.trainer[group_id].prep_rollout()
+            obs_batch = np.concatenate(self.buffer[group_id].obs[-1])
+            if self.use_share_obs == False and self.all_args.env_name == "drone" and "ppo" in self.algorithm_name:
+                BxN, C, H, W = obs_batch.shape
+                N = len(self.agent_groups[group_id])
+                B = BxN // N
+                state_batch = obs_batch.reshape(B, N * C, H, W).repeat(N, 0)
+            else:
+                state_batch = np.concatenate(self.buffer[group_id].share_obs[-1]) if self.use_share_obs else None
+            next_values = self.trainer[group_id].policy.get_values(
+                state_batch,
+                obs_batch,
+                np.concatenate(self.buffer[group_id].rnn_states_critic[-1]),
+                np.concatenate(self.buffer[group_id].masks[-1]),
+            )
+            next_values = np.array(np.split(_t2n(next_values), self.n_rollout_threads))
+            self.buffer[group_id].compute_returns(next_values, self.trainer[group_id].value_normalizer)
 
     def train(self):
         """Train policies with data in buffer. """
-        self.trainer.prep_training()
-        train_infos = self.trainer.train(self.buffer)
-        self.buffer.after_update()
+        train_infos = []
+        for group_id in range(self.num_agent_groups):
+            self.trainer[group_id].prep_training()
+            train_infos = self.trainer[group_id].train(self.buffer[group_id])
+            self.buffer[group_id].after_update()
+            train_infos.append(train_infos)
         return train_infos
 
     def save(self, episode):
         """Save policy's actor and critic networks."""
-        if 'ppo' in self.algorithm_name:
-            policy_actor = self.trainer.policy.actor
-            torch.save(policy_actor.state_dict(), f"{self.save_dir}/actor_{episode}.pt")
-            torch.save(policy_actor.state_dict(), f"{self.save_dir}/actor.pt")
-            policy_critic = self.trainer.policy.critic
-            torch.save(
-                policy_critic.state_dict(), f"{self.save_dir}/critic_{episode}.pt"
-            )
-            torch.save(policy_critic.state_dict(), f"{self.save_dir}/critic.pt")
-        elif "mat" in self.algorithm_name or "major" == self.algorithm_name:
-            self.policy.save(self.save_dir, episode)
+        for group_id in range(self.num_agent_groups):
+            if 'ppo' in self.algorithm_name:
+                policy_actor = self.trainer[group_id].policy.actor
+                torch.save(policy_actor.state_dict(), f"{self.save_dir}/group{group_id}_actor_{episode}.pt")
+                torch.save(policy_actor.state_dict(), f"{self.save_dir}/group{group_id}_actor.pt")
+                policy_critic = self.trainer[group_id].policy.critic
+                torch.save(
+                    policy_critic.state_dict(), f"{self.save_dir}/group{group_id}_critic_{episode}.pt"
+                )
+                torch.save(policy_critic.state_dict(), f"{self.save_dir}/group{group_id}_critic.pt")
+            elif "mat" in self.algorithm_name or "major" == self.algorithm_name:
+                self.policy[group_id].save(self.save_dir, episode)
 
     def restore(self, model_dir):
         """Restore policy's networks from a saved model."""
-        self.policy.restore(model_dir)
+        for group_id in range(self.num_agent_groups):
+            self.policy[group_id].restore(model_dir)
 
     def log_train(self, train_infos, total_num_steps):
         """
@@ -221,11 +252,13 @@ class Runner(object):
         :param train_infos: (dict) information about training update.
         :param total_num_steps: (int) total number of training env steps.
         """
-        for k, v in train_infos.items():
-            if self.use_wandb:
-                wandb.log({k: v}, step=total_num_steps)
-            else:
-                self.writter.add_scalars(k, {k: v}, total_num_steps)
+        for group_id in range(self.num_agent_groups):
+            for k, v in train_infos[group_id].items():
+                group_k = "group%i/" % group_id + k
+                if self.use_wandb:
+                    wandb.log({group_k: v}, step=total_num_steps)
+                else:
+                    self.writter.add_scalars(k, {group_k: v}, total_num_steps)
 
     def log_env(self, env_infos, total_num_steps):
         """

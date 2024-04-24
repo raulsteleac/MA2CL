@@ -58,25 +58,25 @@ class Runner(object):
             self.agent_groups = self.envs.unwrapped.agent_groups
             print("Using agent groups: ", self.agent_groups)
         else:
-            # if env doesn't support agent groups there is one group with all agents
+            # one group with all agents
             self.agent_groups = [list(np.arange(self.num_agents))]
         self.num_agent_groups = len(self.agent_groups)
 
         # dir
         self.model_dir = self.all_args.model_dir
 
-        if self.use_wandb:
-            self.save_dir = str(wandb.run.dir)
-            self.run_dir = str(wandb.run.dir)
-        else:
-            self.run_dir = config["run_dir"]
-            self.log_dir = f"{self.run_dir}/logs"
-            if not os.path.exists(self.log_dir):
-                os.makedirs(self.log_dir)
-            self.writter = SummaryWriter(self.log_dir)
-            self.save_dir = f"{self.run_dir}/models"
-            if not os.path.exists(self.save_dir):
-                os.makedirs(self.save_dir)
+        # if self.use_wandb:
+        #     self.save_dir = str(wandb.run.dir)
+        #     self.run_dir = str(wandb.run.dir)
+        # else:
+        self.run_dir = config["run_dir"]
+        self.log_dir = f"{self.run_dir}/logs"
+        if not os.path.exists(self.log_dir):
+            os.makedirs(self.log_dir)
+        self.writter = SummaryWriter(self.log_dir)
+        self.save_dir = f"{self.run_dir}/models"
+        if not os.path.exists(self.save_dir):
+            os.makedirs(self.save_dir)
 
         if 'ppo' in self.algorithm_name:
             from MA2CL.algorithms.mappo_policy import MAPPO_Policy as Policy
@@ -221,9 +221,9 @@ class Runner(object):
         train_infos = []
         for group_id in range(self.num_agent_groups):
             self.trainer[group_id].prep_training()
-            train_infos = self.trainer[group_id].train(self.buffer[group_id])
+            train_info = self.trainer[group_id].train(self.buffer[group_id])
             self.buffer[group_id].after_update()
-            train_infos.append(train_infos)
+            train_infos.append(train_info)
         return train_infos
 
     def save(self, episode):

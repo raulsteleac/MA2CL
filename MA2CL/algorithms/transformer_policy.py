@@ -5,7 +5,7 @@ import torch
 
 from MA2CL.algorithms.ma_transformer import MultiAgentTransformer
 from MA2CL.algorithms.utils.util import check
-from utils.util import (
+from MA2CL.utils.util import (
     center_crop_image,
     get_model_params_volume,
     get_shape_from_obs_space,

@@ -287,6 +287,10 @@ class Runner(object):
                     .reshape(-1, *self.buffer[agent_id].available_actions.shape[2:])
                 )
 
+                active_masks = self.buffer[agent_id].active_masks[:-1].reshape(-1, *self.buffer[agent_id].active_masks.shape[2:])
+                if np.sum(active_masks) <= 1:
+                    continue
+                
                 if self.all_args.algorithm_name == "hatrpo":
                     obs = (
                         self.buffer[agent_id]
@@ -309,9 +313,7 @@ class Runner(object):
                         .masks[:-1]
                         .reshape(-1, *self.buffer[agent_id].masks.shape[2:]),
                         available_actions,
-                        self.buffer[agent_id]
-                        .active_masks[:-1]
-                        .reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]),
+                        active_masks,
                     )
                 else:
                     obs = (
@@ -335,9 +337,7 @@ class Runner(object):
                         .masks[:-1]
                         .reshape(-1, *self.buffer[agent_id].masks.shape[2:]),
                         available_actions,
-                        self.buffer[agent_id]
-                        .active_masks[:-1]
-                        .reshape(-1, *self.buffer[agent_id].active_masks.shape[2:]),
+                        active_masks,
                     )
                 train_info = self.trainer[agent_id].train(self.buffer[agent_id])
 

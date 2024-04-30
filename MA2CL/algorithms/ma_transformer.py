@@ -346,7 +346,8 @@ class MultiAgentTransformer(nn.Module):
         self.device = device
 
         # state unused
-        state_dim = 37
+        if not encode_state:
+            state_dim = 37
 
         self.encoder = Encoder(
             state_dim, obs_dim, n_block, n_embd, n_head, n_agent, encode_state,
@@ -375,8 +376,9 @@ class MultiAgentTransformer(nn.Module):
         # available_actions: (batch, n_agent, act_dim)
 
         # state unused
-        ori_shape = np.shape(state)
-        state = np.zeros((*ori_shape[:-1], 37), dtype=np.float32)
+        if not self.encoder.encode_state:
+            ori_shape = np.shape(state)
+            state = np.zeros((*ori_shape[:-1], 37), dtype=np.float32)
 
         state = check(state).to(**self.tpdv)
         obs = check(obs).to(**self.tpdv)
@@ -416,8 +418,9 @@ class MultiAgentTransformer(nn.Module):
 
     def get_actions(self, state, obs, available_actions=None, deterministic=False):
         # state unused
-        ori_shape = np.shape(obs)
-        state = np.zeros((*ori_shape[:-1], 37), dtype=np.float32)
+        if not self.encoder.encode_state:
+            ori_shape = np.shape(obs)
+            state = np.zeros((*ori_shape[:-1], 37), dtype=np.float32)
 
         state = check(state).to(**self.tpdv)
         obs = check(obs).to(**self.tpdv)
@@ -454,8 +457,9 @@ class MultiAgentTransformer(nn.Module):
 
     def get_values(self, state, obs):
         # state unused
-        ori_shape = np.shape(state)
-        state = np.zeros((*ori_shape[:-1], 37), dtype=np.float32)
+        if not self.encoder.encode_state:
+            ori_shape = np.shape(state)
+            state = np.zeros((*ori_shape[:-1], 37), dtype=np.float32)
 
         state = check(state).to(**self.tpdv)
         obs = check(obs).to(**self.tpdv)

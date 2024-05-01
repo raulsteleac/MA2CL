@@ -54,13 +54,18 @@ class Runner(object):
         self.log_interval = self.all_args.log_interval
 
         # agent groups
-        if self.all_args.use_agent_groups:
-            self.agent_groups = self.envs.unwrapped.agent_groups
-            print("Using agent groups: ", self.agent_groups)
+        if self.all_args.model_per_agent_group:
+            self.agent_groups_for_model = self.envs.unwrapped.agent_groups
+            self.agent_groups_for_shuffling = None
+            print("Using agent groups: ", self.agent_groups_for_model)
         else:
             # one group with all agents
-            self.agent_groups = [list(np.arange(self.num_agents))]
-        self.num_agent_groups = len(self.agent_groups)
+            self.agent_groups_for_model = [list(np.arange(self.num_agents))]
+            if self.all_args.shuffle_within_agent_group:
+                self.agent_groups_for_shuffling = self.envs.unwrapped.agent_groups
+            else:
+                self.agent_groups_for_shuffling = [list(np.arange(self.num_agents))]
+        self.num_agent_groups = len(self.agent_groups_for_model)
 
         # dir
         self.model_dir = self.all_args.model_dir
@@ -85,14 +90,14 @@ class Runner(object):
             from MA2CL.algorithms.mat_trainer import MATTrainer as TrainAlgo
             from MA2CL.algorithms.transformer_policy import TransformerPolicy as Policy
 
-        for idx, group in enumerate(self.agent_groups):
+        for idx, group in enumerate(self.agent_groups_for_model):
             print(f"group {idx} obs_space: ", self.envs.observation_space[group[0]])
             print(f"group {idx} share_obs_space: ", self.envs.share_observation_space[group[0]])
             print(f"group {idx} act_space: ", self.envs.action_space[group[0]])
 
         self.policy = []
         # each group has a different policy
-        for agent_group in self.agent_groups:
+        for agent_group in self.agent_groups_for_model:
             pre_share_observation_space = (
                 self.envs.share_observation_space[agent_group[0]]
                 if self.use_centralized_V
@@ -138,7 +143,7 @@ class Runner(object):
             # policy network
             po = Policy(
                 self.all_args,
-                observation_space,
+                observation_space if self.all_args.model_per_agent_group else share_observation_space,
                 share_observation_space,
                 self.envs.action_space[agent_group[0]],
                 len(agent_group),
@@ -152,7 +157,7 @@ class Runner(object):
         self.use_share_obs = self.all_args.use_share_obs
         self.trainer = []
         self.buffer = []
-        for group_id, agent_group in enumerate(self.agent_groups):
+        for group_id, agent_group in enumerate(self.agent_groups_for_model):
             group_num_agents = len(agent_group)
             # algorithm
             tr = TrainAlgo(
@@ -168,9 +173,10 @@ class Runner(object):
             bu = SharedReplayBuffer(
                 self.all_args,
                 group_num_agents,
-                pre_observation_space,
+                pre_observation_space if self.all_args.model_per_agent_group else pre_share_observation_space,
                 pre_share_observation_space,
                 self.envs.action_space[agent_group[0]],
+                self.agent_groups_for_shuffling
             )
             self.buffer.append(bu)
             self.trainer.append(tr)

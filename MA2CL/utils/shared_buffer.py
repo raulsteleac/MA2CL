@@ -11,10 +11,17 @@ def _cast(x):
     return x.transpose(1, 2, 0, 3).reshape(-1, *x.shape[3:])
 
 
-def _shuffle_agent_grid(x, y):
+def _shuffle_agent_grid(x, y, agent_groups_for_shuffling):
     rows = np.indices((x, y))[0]
-    cols = np.stack([np.random.permutation(y) for _ in range(x)])
-    # cols = np.stack([np.arange(y) for _ in range(x)])
+    if agent_groups_for_shuffling is not None:
+        cols = []
+        for agent_group in agent_groups_for_shuffling:
+            c = np.stack([np.random.permutation(agent_group) for _ in range(x)])
+            cols.append(c)
+        cols = np.concatenate(cols, axis=1)
+    else:
+        cols = np.stack([np.random.permutation(y) for _ in range(x)])
+        # cols = np.stack([np.arange(y) for _ in range(x)])
     return rows, cols
 
 
@@ -28,7 +35,7 @@ class SharedReplayBuffer(object):
     :param act_space: (gym.Space) action space for agents.
     """
 
-    def __init__(self, args, num_agents, obs_space, cent_obs_space, act_space):
+    def __init__(self, args, num_agents, obs_space, cent_obs_space, act_space, agent_groups_for_shuffling):
         self.episode_length = args.episode_length
         self.n_rollout_threads = args.n_rollout_threads
         self.hidden_size = args.hidden_size
@@ -42,6 +49,7 @@ class SharedReplayBuffer(object):
         self.algo = args.algorithm_name
         self.num_agents = num_agents
         self.env_name = args.env_name
+        self.agent_groups_for_shuffling = agent_groups_for_shuffling
 
         self.use_share_obs = args.use_share_obs
         obs_shape = get_shape_from_obs_space(obs_space)
@@ -445,7 +453,7 @@ class SharedReplayBuffer(object):
             rand[i * mini_batch_size: (i + 1) * mini_batch_size]
             for i in range(num_mini_batch)
         ]
-        rows, cols = _shuffle_agent_grid(batch_size, num_agents)
+        rows, cols = _shuffle_agent_grid(batch_size, num_agents, self.agent_groups_for_shuffling)
 
         # keep (num_agent, dim)
         if self.use_share_obs:

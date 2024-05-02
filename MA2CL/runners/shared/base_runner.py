@@ -139,11 +139,10 @@ class Runner(object):
                 )
             else:
                 observation_space = pre_observation_space
-
             # policy network
             po = Policy(
                 self.all_args,
-                observation_space if self.all_args.model_per_agent_group else share_observation_space,
+                observation_space,
                 share_observation_space,
                 self.envs.action_space[agent_group[0]],
                 len(agent_group),
@@ -173,7 +172,7 @@ class Runner(object):
             bu = SharedReplayBuffer(
                 self.all_args,
                 group_num_agents,
-                pre_observation_space if self.all_args.model_per_agent_group else pre_share_observation_space,
+                pre_observation_space,
                 pre_share_observation_space,
                 self.envs.action_space[agent_group[0]],
                 self.agent_groups_for_shuffling

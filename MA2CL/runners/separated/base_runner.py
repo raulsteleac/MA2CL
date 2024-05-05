@@ -38,7 +38,7 @@ class Runner(object):
         self.use_centralized_V = self.all_args.use_centralized_V
         self.use_obs_instead_of_state = self.all_args.use_obs_instead_of_state
         self.num_env_steps = self.all_args.num_env_steps
-        self.episode_length = self.all_args.episode_length
+        self.episode_length = self.all_args.update_frequency
         self.n_rollout_threads = self.all_args.n_rollout_threads
         self.n_eval_rollout_threads = self.all_args.n_eval_rollout_threads
         self.use_linear_lr_decay = self.all_args.use_linear_lr_decay
@@ -264,7 +264,7 @@ class Runner(object):
                 next_value, self.trainer[agent_id].value_normalizer
             )
 
-    def train(self):
+    def train(self, agent_per_group_order):
         train_infos = [{} for _ in range(self.num_agents)]
         # random update order
 
@@ -274,9 +274,9 @@ class Runner(object):
         )
 
         # groups have fixed order but agents are shuffled within the group
-        for agent_group in self.agent_groups:
-            shuffled_agents = np.random.choice(agent_group, len(agent_group), replace=False)
-            for agent_id in shuffled_agents:
+        for agent_group in agent_per_group_order:
+            # shuffled_agents = np.random.choice(agent_group, len(agent_group), replace=False)
+            for agent_id in agent_group:
                 self.trainer[agent_id].prep_training()
                 self.buffer[agent_id].update_factor(factor)
                 available_actions = (

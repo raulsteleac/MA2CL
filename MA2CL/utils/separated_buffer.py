@@ -15,7 +15,7 @@ def _cast(x):
 
 class SeparatedReplayBuffer(object):
     def __init__(self, args, obs_space, share_obs_space, act_space):
-        self.episode_length = args.episode_length
+        self.episode_length = args.update_frequency
         self.n_rollout_threads = args.n_rollout_threads
         self.rnn_hidden_size = args.hidden_size
         self.recurrent_N = args.recurrent_N

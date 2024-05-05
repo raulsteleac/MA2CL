@@ -38,7 +38,7 @@ class Runner(object):
         self.use_centralized_V = self.all_args.use_centralized_V
         self.use_obs_instead_of_state = self.all_args.use_obs_instead_of_state
         self.num_env_steps = self.all_args.num_env_steps
-        self.episode_length = self.all_args.episode_length
+        self.update_frequency = self.all_args.update_frequency
         self.n_rollout_threads = self.all_args.n_rollout_threads
         self.n_eval_rollout_threads = self.all_args.n_eval_rollout_threads
         self.use_linear_lr_decay = self.all_args.use_linear_lr_decay
@@ -270,7 +270,7 @@ class Runner(object):
 
         action_dim = self.buffer[0].actions.shape[-1]
         factor = np.ones(
-            (self.episode_length, self.n_rollout_threads, 1), dtype=np.float32
+            (self.update_frequency, self.n_rollout_threads, 1), dtype=np.float32
         )
 
         # groups have fixed order but agents are shuffled within the group
@@ -398,7 +398,7 @@ class Runner(object):
                     factor = factor * _t2n(
                         torch.prod(
                             torch.exp(new_actions_logprob - old_actions_logprob), dim=-1
-                        ).reshape(self.episode_length, self.n_rollout_threads, 1)
+                        ).reshape(self.update_frequency, self.n_rollout_threads, 1)
                     )
                 train_infos[agent_id] = train_info
             
@@ -429,7 +429,7 @@ class Runner(object):
             episode = self.num_updates // (self.all_args.ppo_epoch * self.all_args.num_mini_batch)
             episodes = (
                 int(self.all_args.num_env_steps)
-                // self.all_args.episode_length
+                // self.all_args.update_frequency
                 // self.all_args.n_rollout_threads
             )
             if self.use_linear_maskalr_decay:

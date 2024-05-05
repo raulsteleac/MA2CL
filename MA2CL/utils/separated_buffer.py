@@ -15,7 +15,7 @@ def _cast(x):
 
 class SeparatedReplayBuffer(object):
     def __init__(self, args, obs_space, share_obs_space, act_space):
-        self.episode_length = args.episode_length
+        self.update_frequency = args.update_frequency
         self.n_rollout_threads = args.n_rollout_threads
         self.rnn_hidden_size = args.hidden_size
         self.recurrent_N = args.recurrent_N
@@ -37,17 +37,17 @@ class SeparatedReplayBuffer(object):
             share_obs_shape = share_obs_shape[:1]
 
         self.share_obs = np.zeros(
-            (self.episode_length + 1, self.n_rollout_threads, *share_obs_shape),
+            (self.update_frequency + 1, self.n_rollout_threads, *share_obs_shape),
             dtype=np.float32,
         )
         self.obs = np.zeros(
-            (self.episode_length + 1, self.n_rollout_threads, *obs_shape),
+            (self.update_frequency + 1, self.n_rollout_threads, *obs_shape),
             dtype=np.float32,
         )
 
         self.rnn_states = np.zeros(
             (
-                self.episode_length + 1,
+                self.update_frequency + 1,
                 self.n_rollout_threads,
                 self.recurrent_N,
                 self.rnn_hidden_size,
@@ -57,15 +57,15 @@ class SeparatedReplayBuffer(object):
         self.rnn_states_critic = np.zeros_like(self.rnn_states)
 
         self.value_preds = np.zeros(
-            (self.episode_length + 1, self.n_rollout_threads, 1), dtype=np.float32
+            (self.update_frequency + 1, self.n_rollout_threads, 1), dtype=np.float32
         )
         self.returns = np.zeros(
-            (self.episode_length + 1, self.n_rollout_threads, 1), dtype=np.float32
+            (self.update_frequency + 1, self.n_rollout_threads, 1), dtype=np.float32
         )
 
         if act_space.__class__.__name__ == "Discrete":
             self.available_actions = np.ones(
-                (self.episode_length + 1, self.n_rollout_threads, act_space.n),
+                (self.update_frequency + 1, self.n_rollout_threads, act_space.n),
                 dtype=np.float32,
             )
         else:
@@ -74,17 +74,17 @@ class SeparatedReplayBuffer(object):
         act_shape = get_shape_from_act_space(act_space)
 
         self.actions = np.zeros(
-            (self.episode_length, self.n_rollout_threads, act_shape), dtype=np.float32
+            (self.update_frequency, self.n_rollout_threads, act_shape), dtype=np.float32
         )
         self.action_log_probs = np.zeros(
-            (self.episode_length, self.n_rollout_threads, act_shape), dtype=np.float32
+            (self.update_frequency, self.n_rollout_threads, act_shape), dtype=np.float32
         )
         self.rewards = np.zeros(
-            (self.episode_length, self.n_rollout_threads, 1), dtype=np.float32
+            (self.update_frequency, self.n_rollout_threads, 1), dtype=np.float32
         )
 
         self.masks = np.ones(
-            (self.episode_length + 1, self.n_rollout_threads, 1), dtype=np.float32
+            (self.update_frequency + 1, self.n_rollout_threads, 1), dtype=np.float32
         )
         self.bad_masks = np.ones_like(self.masks)
         self.active_masks = np.ones_like(self.masks)
@@ -128,7 +128,7 @@ class SeparatedReplayBuffer(object):
         if available_actions is not None:
             self.available_actions[self.step + 1] = available_actions.copy()
 
-        self.step = (self.step + 1) % self.episode_length
+        self.step = (self.step + 1) % self.update_frequency
 
     def chooseinsert(
         self,
@@ -161,7 +161,7 @@ class SeparatedReplayBuffer(object):
         if available_actions is not None:
             self.available_actions[self.step] = available_actions.copy()
 
-        self.step = (self.step + 1) % self.episode_length
+        self.step = (self.step + 1) % self.update_frequency
 
     def after_update(self):
         self.share_obs[0] = self.share_obs[-1].copy()
@@ -286,8 +286,8 @@ class SeparatedReplayBuffer(object):
     def feed_forward_generator(
         self, advantages, num_mini_batch=None, mini_batch_size=None
     ):
-        episode_length, n_rollout_threads = self.rewards.shape[0:2]
-        batch_size = n_rollout_threads * episode_length
+        update_frequency, n_rollout_threads = self.rewards.shape[0:2]
+        batch_size = n_rollout_threads * update_frequency
 
         if mini_batch_size is None:
             assert batch_size >= num_mini_batch, (
@@ -296,8 +296,8 @@ class SeparatedReplayBuffer(object):
                 "to be greater than or equal to the number of PPO mini batches ({})."
                 "".format(
                     n_rollout_threads,
-                    episode_length,
-                    n_rollout_threads * episode_length,
+                    update_frequency,
+                    n_rollout_threads * update_frequency,
                     num_mini_batch,
                 )
             )
@@ -408,7 +408,7 @@ class SeparatedReplayBuffer(object):
                     factor_batch.append(self.factor[:, ind])
 
             # [N[T, dim]]
-            T, N = self.episode_length, num_envs_per_batch
+            T, N = self.update_frequency, num_envs_per_batch
             # These are all from_numpys of size (T, N, -1)
             share_obs_batch = np.stack(share_obs_batch, 1)
             obs_batch = np.stack(obs_batch, 1)
@@ -461,16 +461,16 @@ class SeparatedReplayBuffer(object):
                 yield share_obs_batch, obs_batch, rnn_states_batch, rnn_states_critic_batch, actions_batch, value_preds_batch, return_batch, masks_batch, active_masks_batch, old_action_log_probs_batch, adv_targ, available_actions_batch
 
     def recurrent_generator(self, advantages, num_mini_batch, data_chunk_length):
-        episode_length, n_rollout_threads = self.rewards.shape[0:2]
-        batch_size = n_rollout_threads * episode_length
+        update_frequency, n_rollout_threads = self.rewards.shape[0:2]
+        batch_size = n_rollout_threads * update_frequency
         data_chunks = batch_size // data_chunk_length  # [C=r*T/L]
         mini_batch_size = data_chunks // num_mini_batch
 
-        assert episode_length * n_rollout_threads >= data_chunk_length, (
+        assert update_frequency * n_rollout_threads >= data_chunk_length, (
             "PPO requires the number of processes ({}) * episode length ({}) "
             "to be greater than or equal to the number of "
             "data chunk length ({}).".format(
-                n_rollout_threads, episode_length, data_chunk_length
+                n_rollout_threads, update_frequency, data_chunk_length
             )
         )
         assert data_chunks >= 2, "need larger batch size"
@@ -617,10 +617,10 @@ class SeparatedReplayBuffer(object):
         :param num_mini_batch: (int) number of minibatches to split the batch into.
         :param mini_batch_size: (int) number of samples in each minibatch.
         """
-        episode_length, n_rollout_threads, _ = self.rewards.shape[0:3]
-        batch_size = n_rollout_threads * (episode_length - jumps - 1)
+        update_frequency, n_rollout_threads, _ = self.rewards.shape[0:3]
+        batch_size = n_rollout_threads * (update_frequency - jumps - 1)
 
-        idxs = np.arange(episode_length * n_rollout_threads).reshape(-1, n_rollout_threads)
+        idxs = np.arange(update_frequency * n_rollout_threads).reshape(-1, n_rollout_threads)
         idxs_obs = np.lib.stride_tricks.sliding_window_view(idxs, jumps + 1, axis=0)
         idxs_obs = idxs_obs.reshape(-1, jumps + 1)
 

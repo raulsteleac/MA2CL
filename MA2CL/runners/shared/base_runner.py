@@ -103,7 +103,7 @@ class Runner(object):
                 if self.use_centralized_V
                 else self.envs.observation_space[agent_group[0]]
             )
-            pre_observation_space = self.envs.observation_space[agent_group[0]]
+            pre_observation_space = self.envs.observation_space[agent_group[-1]]
             if (
                 isinstance(pre_share_observation_space, Box)
                 and len(pre_share_observation_space.shape) == 3
@@ -168,7 +168,7 @@ class Runner(object):
                 if self.use_centralized_V
                 else self.envs.observation_space[agent_group[0]]
             )
-            pre_observation_space = self.envs.observation_space[agent_group[0]]
+            pre_observation_space = self.envs.observation_space[agent_group[-1]]
             bu = SharedReplayBuffer(
                 self.all_args,
                 group_num_agents,

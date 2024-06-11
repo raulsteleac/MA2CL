@@ -38,6 +38,18 @@ class CNNLayer(nn.Module):
                 active_func,
                 nn.Flatten(),
             )
+        elif obs_shape[2] < 5:
+            cnn = nn.Sequential(
+                init_(nn.Conv2d(obs_shape[0], 32, kernel_size=(2,1), stride=1)),
+                active_func,
+                init_(nn.Conv2d(32, 64, kernel_size=(2,1), stride=1)),
+                active_func,
+                init_(
+                    nn.Conv2d(64, hidden_size, kernel_size=(2,2), stride=stride)
+                ),
+                active_func,
+                nn.Flatten(),
+            )
         else:
             cnn = nn.Sequential(
                 init_(nn.Conv2d(obs_shape[0], 32, kernel_size=8, stride=4)),

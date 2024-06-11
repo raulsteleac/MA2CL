@@ -38,6 +38,7 @@ class TransformerPolicy:
         self.opti_eps = args.opti_eps
         self.weight_decay = args.weight_decay
         self._use_policy_active_masks = args.use_policy_active_masks
+        self.env_name = args.env_name
 
         if act_space.__class__.__name__ == "Box":
             self.action_type = "Continuous"
@@ -46,9 +47,13 @@ class TransformerPolicy:
 
         self.obs_dim = get_shape_from_obs_space(obs_space)
         self.share_obs_dim = get_shape_from_obs_space(cent_obs_space)
-        if args.env_name not in ["butterfly", "pixel_football", "drone"]:
+        if args.env_name not in ["butterfly", "pixel_football", "drone", "dematic_warehouse"]:
             self.obs_dim = self.obs_dim[0]
             self.share_obs_dim = self.share_obs_dim[0]
+        elif args.env_name == "dematic_warehouse":
+            if len(self.obs_dim) < 3:
+                self.obs_dim = self.obs_dim[0]
+                self.share_obs_dim = self.share_obs_dim[0]
         if self.action_type == "Discrete":
             self.act_dim = act_space.n
             self.act_num = 1
@@ -144,7 +149,7 @@ class TransformerPolicy:
                 cent_obs = cent_obs.reshape(-1, self.num_agents, self.share_obs_dim)
 
         if isinstance(self.obs_dim, (list, tuple)):
-            if obs.shape[-1] != self.image_size:
+            if obs.shape[-1] != self.image_size and self.env_name != "dematic_warehouse":
                 obs = center_crop_image(obs, self.image_size)
             obs = obs.reshape(-1, self.num_agents, *self.obs_dim)
 

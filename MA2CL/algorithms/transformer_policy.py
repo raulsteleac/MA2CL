@@ -191,8 +191,8 @@ class TransformerPolicy:
             else:
                 cent_obs = cent_obs.reshape(-1, self.num_agents, self.share_obs_dim)
 
-        if isinstance(self.obs_dim, (list, tuple)) and self.env_name != "dematic_warehouse":
-            if obs.shape[-1] != self.image_size:
+        if isinstance(self.obs_dim, (list, tuple)):
+            if obs.shape[-1] != self.image_size and self.env_name != "dematic_warehouse":
                 obs = center_crop_image(obs, self.image_size)
             obs = obs.reshape(-1, self.num_agents, *self.obs_dim)
         else:

@@ -21,7 +21,7 @@ class CNNLayer(nn.Module):
         active_func = [nn.Tanh(), nn.ReLU()][use_ReLU]
         init_method = [nn.init.xavier_uniform_, nn.init.orthogonal_][use_orthogonal]
         gain = nn.init.calculate_gain(["tanh", "relu"][use_ReLU])
-        self.need_normalize = obs_shape[1] > 32
+        self.need_normalize = False # obs_shape[1] > 32
 
         def init_(m):
             return init(m, init_method, lambda x: nn.init.constant_(x, 0), gain=gain)
@@ -40,12 +40,12 @@ class CNNLayer(nn.Module):
             )
         elif obs_shape[2] < 5:
             cnn = nn.Sequential(
-                init_(nn.Conv2d(obs_shape[0], 32, kernel_size=(2,1), stride=1)),
+                init_(nn.Conv2d(obs_shape[0], 32, kernel_size=(2,1), stride=(2,1))),
                 active_func,
-                init_(nn.Conv2d(32, 64, kernel_size=(2,1), stride=1)),
+                init_(nn.Conv2d(32, 64, kernel_size=(2,1))),
                 active_func,
                 init_(
-                    nn.Conv2d(64, hidden_size, kernel_size=(2,2), stride=stride)
+                    nn.Conv2d(64, hidden_size, kernel_size=(2,2))
                 ),
                 active_func,
                 nn.Flatten(),
